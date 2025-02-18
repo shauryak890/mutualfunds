@@ -143,8 +143,19 @@ router.get('/dashboard', protect, authorize('agent'), asyncHandler(async (req, r
   try {
     console.log('Dashboard request from agent:', req.user.agentId);
 
+    // Validate user
+    if (!req.user || !req.user._id) {
+      console.error('Invalid user in request:', req.user);
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid user request'
+      });
+    }
+
     // Get all leads for this agent
     const leads = await Lead.find({ agent: req.user._id });
+    console.log('Found leads:', leads.length);
+
     const approvedLeads = leads.filter(lead => lead.status === 'approved');
     const pendingLeads = leads.filter(lead => lead.status === 'pending');
     
@@ -283,7 +294,7 @@ router.get('/dashboard', protect, authorize('agent'), asyncHandler(async (req, r
     console.error('Dashboard error:', error);
     res.status(500).json({
       success: false,
-      error: 'Error fetching dashboard data'
+      error: error.message || 'Error fetching dashboard data'
     });
   }
 }));
