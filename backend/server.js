@@ -84,3 +84,5 @@ console.log('Environment check:', {
   JWT_COOKIE_EXPIRE: process.env.JWT_COOKIE_EXPIRE,
   NODE_ENV: process.env.NODE_ENV
 });
+
+module.exports = app;
