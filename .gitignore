@@ -1,1 +1,29 @@
-backend/config/budget-brilliance-4d5a0e6bae26.json
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Google Cloud credentials
+backend/config/*-*.json
+backend/config/service-account.json
+backend/config/serviceAccount.json
+backend/config/credentials.json
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build directories
+/build
+/dist
+
+# IDE files
+.idea/
+.vscode/
+*.swp
