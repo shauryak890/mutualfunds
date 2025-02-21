@@ -19,7 +19,16 @@ const newsRoutes = require('./routes/newsRoutes');
 
 // Middleware
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://www.budgetbrilliance.in',
+    'https://budgetbrilliance.in',
+    'http://localhost:3000'  // Keep this for local development
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(cookieParser());
 
 // Dev logging middleware
