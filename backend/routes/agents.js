@@ -109,33 +109,22 @@ router.patch('/sub-agents/:id/commission', asyncHandler(async (req, res) => {
 
 // @desc    Get commission history
 // @route   GET /api/agents/commission-history
-router.get('/commission-history', asyncHandler(async (req, res) => {
-  console.log('Commission history request from:', req.user.role, req.user.agentId);
-  
-  let query = {};
-  
-  if (req.user.role === 'agent') {
-    query.agentId = req.user.agentId;
-  } else if (req.user.role === 'sub-agent') {
-    query.subAgentId = req.user.agentId;
+router.get('/commission-history', protect, async (req, res) => {
+  try {
+    // Your commission history logic here
+    const commissions = await Commission.find({ agent: req.user._id });
+    res.json({
+      success: true,
+      data: commissions
+    });
+  } catch (error) {
+    console.error('Commission history error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch commission history'
+    });
   }
-
-  console.log('Commission query:', query);
-
-  const commissions = await Commission.find(query)
-    .sort('-createdAt')
-    .populate('transaction', 'amount type scheme client')
-    .limit(req.query.limit ? parseInt(req.query.limit) : 50);
-
-  console.log('Found commissions:', commissions.length);
-
-  // Always return an array, even if empty
-  res.status(200).json({
-    success: true,
-    count: commissions?.length || 0,
-    data: commissions || []
-  });
-}));
+});
 
 // @desc    Get agent dashboard data
 // @route   GET /api/agents/dashboard

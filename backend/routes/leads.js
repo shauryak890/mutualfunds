@@ -11,23 +11,66 @@ router.use((req, res, next) => {
   console.log('Lead route accessed:', {
     method: req.method,
     path: req.path,
-    params: req.params,
-    query: req.query,
-    body: req.body
+    body: req.body,
+    user: {
+      id: req.user?._id,
+      role: req.user?.role
+    }
   });
   next();
 });
 
-// Create new lead
-router.post('/', protect, authorize('agent', 'sub-agent'), async (req, res) => {
+// Create a new lead
+router.post('/', protect, async (req, res) => {
   try {
-    const lead = await Lead.create({
-      ...req.body,
-      agent: req.user.id
+    console.log('Creating lead with data:', {
+      body: req.body,
+      user: req.user
     });
-    res.status(201).json({ success: true, data: lead });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
+
+    // Create lead with exact fields
+    const leadData = {
+      customerName: req.body.customerName,
+      customerPhone: req.body.customerPhone,
+      customerEmail: req.body.customerEmail,
+      customerAddress: req.body.customerAddress,
+      investmentType: req.body.investmentType,
+      investmentAmount: parseFloat(req.body.investmentAmount),
+      notes: req.body.notes,
+      agent: req.user._id,
+      status: 'pending'
+    };
+
+    // Log the schema
+    console.log('Lead model schema:', Lead.schema.obj);
+
+    try {
+      // Try using create
+      const lead = await Lead.create(leadData);
+      console.log('Lead created with create():', lead);
+      return res.status(201).json({ success: true, data: lead });
+    } catch (createError) {
+      console.log('Create failed, trying new + save:', createError);
+      
+      // Fallback to new + save
+      const lead = new Lead(leadData);
+      await lead.save();
+      console.log('Lead created with save():', lead);
+      return res.status(201).json({ success: true, data: lead });
+    }
+
+  } catch (error) {
+    console.error('Lead creation error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      errors: error.errors
+    });
+
+    return res.status(400).json({
+      success: false,
+      error: error.message
+    });
   }
 });
 
@@ -131,10 +174,8 @@ router.get('/:id([0-9a-fA-F]{24})', protect, authorize('admin'), asyncHandler(as
       customerName: lead.customerName || 'N/A',
       customerPhone: lead.customerPhone || 'N/A',
       customerEmail: lead.customerEmail || 'N/A',
-      customerPAN: lead.customerPAN || 'N/A',
       investmentType: lead.investmentType || 'N/A',
       investmentAmount: lead.investmentAmount || 0,
-      scheme: lead.scheme || 'N/A',
       status: lead.status || 'pending',
       createdAt: lead.createdAt,
       agent: lead.agent ? {

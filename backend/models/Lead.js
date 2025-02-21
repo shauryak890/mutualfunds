@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+// Define the schema
 const leadSchema = new mongoose.Schema({
   customerName: {
     type: String,
@@ -13,24 +14,22 @@ const leadSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please add customer email']
   },
-  customerPAN: {
+  customerAddress: {
     type: String,
-    required: [true, 'Please add customer PAN']
+    required: false
   },
   investmentType: {
     type: String,
     required: [true, 'Please add investment type'],
-    enum: ['mutual_funds', 'SIP', 'Lumpsum', 'Both'],
-    default: 'mutual_funds'
+    enum: ['mutual_funds', 'SIP', 'Lumpsum', 'Both']
   },
   investmentAmount: {
     type: Number,
     required: [true, 'Please add investment amount']
   },
-  scheme: {
+  notes: {
     type: String,
-    required: [true, 'Please add scheme name'],
-    default: 'Default Mutual Fund Scheme'
+    required: false
   },
   status: {
     type: String,
@@ -45,36 +44,16 @@ const leadSchema = new mongoose.Schema({
   subAgent: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
   }
+}, {
+  timestamps: true
 });
 
-// Update the updatedAt timestamp before saving
-leadSchema.pre('save', function(next) {
-  this.updatedAt = Date.now();
+// Debug validation
+leadSchema.pre('validate', function(next) {
+  console.log('Pre-validation document:', JSON.stringify(this.toObject(), null, 2));
   next();
 });
 
-// Add a method to update status without validation
-leadSchema.statics.updateStatus = async function(leadId, status) {
-  return this.findByIdAndUpdate(
-    leadId,
-    { 
-      status,
-      updatedAt: Date.now()
-    },
-    { 
-      new: true,
-      runValidators: false // Skip validation when updating status
-    }
-  );
-};
-
-module.exports = mongoose.model('Lead', leadSchema);
+// Export the model
+module.exports = mongoose.models.Lead || mongoose.model('Lead', leadSchema); 

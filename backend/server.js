@@ -38,12 +38,24 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'https://www.budgetbrilliance.in',
-    'https://budgetbrilliance.in'    // Include non-www version too
+    'https://budgetbrilliance.in'
   ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization',
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Methods',
+    'Access-Control-Allow-Headers',
+    'Access-Control-Allow-Credentials'
+  ],
+  exposedHeaders: ['Content-Length', 'X-Total-Count']
 }));
+
+// Add CORS preflight handler
+app.options('*', cors());
+
 app.use(express.json());
 
 // Debug middleware
@@ -55,6 +67,51 @@ app.use((req, res, next) => {
     body: req.method === 'POST' ? { ...req.body, password: '[REDACTED]' } : undefined
   });
   next();
+});
+
+// Add this before your routes
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Credentials', true);
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,UPDATE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept');
+  next();
+});
+
+// Add these before any route definitions
+mongoose.set('strictQuery', false);
+mongoose.set('debug', true);
+
+// Add more detailed connection logging
+mongoose.connection.on('connecting', () => {
+  console.log('⌛ Connecting to MongoDB...');
+});
+
+mongoose.connection.on('connected', () => {
+  console.log('✅ Connected to MongoDB');
+});
+
+mongoose.connection.on('error', err => {
+  console.error('❌ MongoDB connection error:', err);
+});
+
+mongoose.connection.once('open', () => {
+  console.log('🚀 MongoDB connection opened');
+  // Log all collections and their validation rules
+  const db = mongoose.connection.db;
+  db.listCollections().toArray((err, collections) => {
+    if (err) {
+      console.error('Error listing collections:', err);
+      return;
+    }
+    collections.forEach(async (collection) => {
+      try {
+        const options = await db.collection(collection.name).options();
+        console.log(`Collection ${collection.name} options:`, options);
+      } catch (e) {
+        console.error(`Error getting options for ${collection.name}:`, e);
+      }
+    });
+  });
 });
 
 // Public routes (no auth required)
