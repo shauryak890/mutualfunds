@@ -35,7 +35,11 @@ if (missingEnvVars.length > 0) {
 
 // Basic middleware
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: [
+    'http://localhost:3000',
+    'https://www.budgetbrilliance.in',
+    'https://budgetbrilliance.in'    // Include non-www version too
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
