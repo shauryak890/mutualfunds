@@ -6,37 +6,94 @@ const ErrorResponse = require('../utils/errorResponse');
 // @route   POST /api/auth/register
 // @access  Public
 exports.register = asyncHandler(async (req, res, next) => {
-  const { name, email, password, phone, address, role, parentAgentId } = req.body;
+  try {
+    const { name, email, password, phone, address, role, parentAgentId } = req.body;
 
-  // Create user with the specified role
-  const user = await User.create({
-    name,
-    email,
-    password,
-    phone,
-    address,
-    role: role || 'user',
-    parentAgent: parentAgentId || null,
-    isApproved: role === 'user' || role === 'admin' // Only auto-approve regular users and admins
-  });
+    console.log('Registration attempt:', {
+      email,
+      role,
+      parentAgentId
+    });
 
-  // For agents, send a different response
-  if (user.role === 'agent' || user.role === 'sub-agent') {
-    return res.status(201).json({
+    // Validate input
+    if (!name || !email || !password || !phone || !address) {
+      throw new ErrorResponse('Please provide all required fields', 400);
+    }
+
+    // If registering as sub-agent, validate parent agent
+    if (role === 'sub-agent') {
+      if (!parentAgentId) {
+        throw new ErrorResponse('Sub-agents must have a parent agent', 400);
+      }
+
+      // Find parent agent by agentId (not MongoDB _id)
+      const parentAgent = await User.findOne({ 
+        agentId: parentAgentId,
+        role: 'agent',
+        isApproved: true
+      });
+
+      if (!parentAgent) {
+        throw new ErrorResponse('Invalid or unapproved parent agent', 400);
+      }
+
+      console.log('Found parent agent:', {
+        id: parentAgent._id,
+        name: parentAgent.name,
+        agentId: parentAgent.agentId
+      });
+
+      // Create user with parent agent reference
+      const user = await User.create({
+        name,
+        email,
+        password,
+        phone,
+        address,
+        role,
+        parentAgent: parentAgent._id,
+        isApproved: false
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: 'Registration successful. Please wait for admin approval.',
+        data: {
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          parentAgentId: parentAgent.agentId,
+          isApproved: user.isApproved
+        }
+      });
+    }
+
+    // Regular agent registration
+    const user = await User.create({
+      name,
+      email,
+      password,
+      phone,
+      address,
+      role,
+      isApproved: false
+    });
+
+    res.status(201).json({
       success: true,
-      message: 'Registration successful. Please wait for admin approval to access your account.',
+      message: 'Registration successful. Please wait for admin approval.',
       data: {
         name: user.name,
         email: user.email,
         role: user.role,
-        agentId: user.agentId,
         isApproved: user.isApproved
       }
     });
-  }
 
-  // For regular users, send token response
-  sendTokenResponse(user, 200, res);
+  } catch (error) {
+    console.error('Registration error:', error);
+    next(error);
+  }
 });
 
 // @desc    Login user
@@ -215,34 +272,57 @@ exports.getPendingAgents = asyncHandler(async (req, res, next) => {
   });
 });
 
+// Add this new endpoint to get agent hierarchy
+exports.getAgentHierarchy = asyncHandler(async (req, res, next) => {
+  const agents = await User.find({ role: 'agent' })
+    .populate({
+      path: 'subAgents',
+      select: 'name email agentId isApproved',
+      match: { role: 'sub-agent' }
+    });
+
+  res.status(200).json({
+    success: true,
+    data: agents.map(agent => ({
+      _id: agent._id,
+      name: agent.name,
+      email: agent.email,
+      agentId: agent.agentId,
+      subAgents: agent.subAgents
+    }))
+  });
+});
+
 // Helper function to get token from model, create cookie and send response
 const sendTokenResponse = (user, statusCode, res) => {
-  const token = user.getSignedJwtToken();
+  try {
+    // Create token
+    const token = user.getSignedJwtToken();
 
-  const options = {
-    expires: new Date(Date.now() + process.env.JWT_COOKIE_EXPIRE * 24 * 60 * 60 * 1000),
-    httpOnly: true
-  };
+    const options = {
+      expires: new Date(
+        Date.now() + process.env.JWT_COOKIE_EXPIRE * 24 * 60 * 60 * 1000
+      ),
+      httpOnly: true
+    };
 
-  if (process.env.NODE_ENV === 'production') {
-    options.secure = true;
+    if (process.env.NODE_ENV === 'production') {
+      options.secure = true;
+    }
+
+    // Remove password from output
+    user.password = undefined;
+
+    res
+      .status(statusCode)
+      .cookie('token', token, options)
+      .json({
+        success: true,
+        token,
+        data: user
+      });
+  } catch (error) {
+    console.error('Token response error:', error);
+    throw error;
   }
-
-  res
-    .status(statusCode)
-    .cookie('token', token, options)
-    .json({
-      success: true,
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        isApproved: user.isApproved,
-        agentId: user.agentId,
-        phone: user.phone,
-        address: user.address
-      }
-    });
 };

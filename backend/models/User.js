@@ -64,27 +64,52 @@ const userSchema = new mongoose.Schema({
   agentId: {
     type: String,
     unique: true,
-    sparse: true  // Only enforce uniqueness if field exists
+    sparse: true // Allows null/undefined values
   }
 });
 
-// Encrypt password before saving
+// Update the pre-save middleware with better agentId generation
 userSchema.pre('save', async function(next) {
-  // Only hash password if it's modified
-  if (this.isModified('password')) {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-  }
+  try {
+    console.log('Pre-save middleware running for:', this.email);
 
-  // Generate agentId for new agents/sub-agents
-  if ((this.role === 'agent' || this.role === 'sub-agent') && !this.agentId) {
-    const count = await this.constructor.countDocuments({ 
-      role: { $in: ['agent', 'sub-agent'] } 
+    // Hash password if modified
+    if (this.isModified('password')) {
+      console.log('Password modified, hashing...');
+      const salt = await bcrypt.genSalt(10);
+      this.password = await bcrypt.hash(this.password, salt);
+    }
+
+    // Generate agentId for new agents/sub-agents
+    if ((this.role === 'agent' || this.role === 'sub-agent') && !this.agentId) {
+      console.log('Generating agent ID...');
+      
+      // Find the highest existing agentId
+      const highestAgent = await this.constructor.findOne({
+        agentId: { $exists: true }
+      }).sort({ agentId: -1 });
+
+      let nextNumber = 1;
+      if (highestAgent && highestAgent.agentId) {
+        // Extract the number from existing highest agentId (AG0002 -> 2)
+        const currentNumber = parseInt(highestAgent.agentId.replace('AG', ''), 10);
+        nextNumber = currentNumber + 1;
+      }
+
+      // Generate new agentId with padded number
+      this.agentId = `AG${String(nextNumber).padStart(4, '0')}`;
+      console.log('Generated new agent ID:', this.agentId);
+    }
+
+    console.log('Pre-save middleware completed successfully');
+    next();
+  } catch (error) {
+    console.error('Pre-save middleware error:', {
+      message: error.message,
+      stack: error.stack
     });
-    this.agentId = `AG${String(count + 1).padStart(4, '0')}`;
+    next(error);
   }
-
-  next();
 });
 
 // Sign JWT and return
@@ -109,5 +134,36 @@ userSchema.methods.getSignedJwtToken = function() {
 userSchema.methods.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
+
+// Add after schema definition
+userSchema.post('validate', function(doc) {
+  console.log('Validation passed for:', {
+    email: doc.email,
+    role: doc.role,
+    hasPassword: !!doc.password,
+    hasPhone: !!doc.phone,
+    hasAddress: !!doc.address
+  });
+});
+
+userSchema.post('save', function(doc) {
+  console.log('User saved successfully:', {
+    id: doc._id,
+    email: doc.email,
+    role: doc.role
+  });
+});
+
+// Add this after your schema definition
+userSchema.virtual('subAgents', {
+  ref: 'User',
+  localField: '_id',
+  foreignField: 'parentAgent',
+  justOne: false
+});
+
+// Make sure virtuals are included in JSON
+userSchema.set('toJSON', { virtuals: true });
+userSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('User', userSchema);

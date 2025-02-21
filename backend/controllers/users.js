@@ -4,11 +4,20 @@ const ErrorResponse = require('../utils/errorResponse');
 
 // @desc    Get all agents
 // @route   GET /api/users/agents
-// @access  Private/Admin
+// @access  Public
 exports.getAgents = asyncHandler(async (req, res, next) => {
-  const agents = await User.find({ role: 'agent' })
-    .select('-password')
-    .populate('parentAgent', 'name email');
+  const agents = await User.find({
+    role: 'agent',
+    isApproved: true
+  })
+  .select('name email agentId _id')
+  .sort({ name: 1 }); // Sort by name
+
+  // Log the agents being sent
+  console.log('Sending agents:', agents.map(a => ({
+    name: a.name,
+    agentId: a.agentId
+  })));
 
   res.status(200).json({
     success: true,
@@ -88,3 +97,43 @@ exports.updateCommissionRate = asyncHandler(async (req, res, next) => {
     data: agent
   });
 });
+
+// @desc    Get agent by agent ID
+// @route   GET /api/users/by-agent-id/:agentId
+// @access  Public
+exports.getAgentByAgentId = async (req, res) => {
+  try {
+    console.log('Looking up agent with ID:', req.params.agentId);
+    
+    const agent = await User.findOne({
+      agentId: req.params.agentId,
+      role: 'agent',
+      isApproved: true
+    }).select('_id name agentId');
+
+    if (!agent) {
+      console.log('No agent found with ID:', req.params.agentId);
+      return res.status(404).json({
+        success: false,
+        error: 'No approved agent found with this ID'
+      });
+    }
+
+    console.log('Found agent:', {
+      id: agent._id,
+      name: agent.name,
+      agentId: agent.agentId
+    });
+
+    res.status(200).json({
+      success: true,
+      data: agent
+    });
+  } catch (error) {
+    console.error('Error in getAgentByAgentId:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error while verifying agent ID'
+    });
+  }
+};

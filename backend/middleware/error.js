@@ -4,19 +4,30 @@ const errorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
 
-  // Log to console for dev
-  console.log(err);
+  console.log('Error middleware:', {
+    name: err.name,
+    code: err.code,
+    message: err.message,
+    stack: err.stack
+  });
 
   // Mongoose bad ObjectId
   if (err.name === 'CastError') {
-    const message = `Resource not found`;
+    const message = `Resource not found with id of ${err.value}`;
     error = new ErrorResponse(message, 404);
   }
 
   // Mongoose duplicate key
   if (err.code === 11000) {
-    const field = Object.keys(err.keyValue)[0];
-    const message = `An account with this ${field} already exists. Please use a different ${field} or login if this is your account.`;
+    const field = Object.keys(err.keyPattern)[0];
+    let message = 'Duplicate field value entered';
+    
+    if (field === 'agentId') {
+      message = 'Error generating agent ID. Please try again.';
+    } else if (field === 'email') {
+      message = 'An account with this email already exists';
+    }
+    
     error = new ErrorResponse(message, 400);
   }
 
@@ -28,7 +39,8 @@ const errorHandler = (err, req, res, next) => {
 
   res.status(error.statusCode || 500).json({
     success: false,
-    error: error.message || 'Server Error'
+    error: error.message || 'Server Error',
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 };
 

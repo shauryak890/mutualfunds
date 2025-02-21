@@ -1,14 +1,21 @@
 const express = require('express');
-const router = express.Router();
+const publicRouter = express.Router();
+const protectedRouter = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 const User = require('../models/User');
 
-// Get all agents (admin only)
-router.get('/agents', protect, authorize('admin'), async (req, res) => {
+// Public routes (no auth required)
+publicRouter.get('/agents', async (req, res) => {
+  console.log('Handling public agents request');
   try {
     const agents = await User.find({ 
-      role: { $in: ['agent', 'sub-agent'] }
-    });
+      role: 'agent',
+      isApproved: true 
+    })
+    .select('name email agentId _id isApproved')
+    .sort({ name: 1 });
+
+    console.log(`Found ${agents.length} approved agents`);
     res.json({ success: true, data: agents });
   } catch (error) {
     console.error('Error fetching agents:', error);
@@ -16,8 +23,74 @@ router.get('/agents', protect, authorize('admin'), async (req, res) => {
   }
 });
 
-// Get agent's sub-agents
-router.get('/sub-agents', protect, authorize('agent'), async (req, res) => {
+// Add this debug middleware to log all requests to publicRouter
+publicRouter.use((req, res, next) => {
+  console.log('Public router hit:', {
+    method: req.method,
+    path: req.path,
+    params: req.params
+  });
+  next();
+});
+
+// Verify agent ID endpoint
+publicRouter.get('/by-agent-id/:agentId', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    console.log('Looking up agent with ID:', agentId);
+    
+    if (!agentId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Agent ID is required'
+      });
+    }
+
+    // Add debug log for the query
+    console.log('Searching for agent with query:', {
+      agentId: agentId.toUpperCase(),
+      role: 'agent',
+      isApproved: true
+    });
+
+    const agent = await User.findOne({
+      agentId: agentId.toUpperCase(),
+      role: 'agent',
+      isApproved: true
+    }).select('_id name agentId');
+
+    console.log('Agent search result:', agent);
+
+    if (!agent) {
+      return res.status(404).json({
+        success: false,
+        error: 'No approved agent found with this ID'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: agent
+    });
+  } catch (error) {
+    console.error('Error in agent lookup:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to verify agent ID',
+      details: error.message
+    });
+  }
+});
+
+// Add a test route to the public router
+publicRouter.get('/test', (req, res) => {
+  res.json({ message: 'Public router is working' });
+});
+
+// Protected routes
+protectedRouter.use(protect); // Apply auth middleware to all protected routes
+
+protectedRouter.get('/sub-agents', authorize('agent'), async (req, res) => {
   try {
     const subAgents = await User.find({ 
       parentAgent: req.user.id,
@@ -29,8 +102,7 @@ router.get('/sub-agents', protect, authorize('agent'), async (req, res) => {
   }
 });
 
-// Approve/reject agent (admin only)
-router.put('/:id/approve', protect, authorize('admin'), async (req, res) => {
+protectedRouter.put('/:id/approve', authorize('admin'), async (req, res) => {
   try {
     const { isApproved } = req.body;
     const user = await User.findById(req.params.id);
@@ -48,14 +120,13 @@ router.put('/:id/approve', protect, authorize('admin'), async (req, res) => {
   }
 });
 
-// Register sub-agent under an agent
-router.post('/register-sub-agent', protect, authorize('agent'), async (req, res) => {
+protectedRouter.post('/register-sub-agent', authorize('agent'), async (req, res) => {
   try {
     const subAgent = await User.create({
       ...req.body,
       role: 'sub-agent',
       parentAgent: req.user.id,
-      isApproved: true // Auto-approve sub-agents
+      isApproved: true
     });
 
     res.status(201).json({ success: true, data: subAgent });
@@ -64,4 +135,7 @@ router.post('/register-sub-agent', protect, authorize('agent'), async (req, res)
   }
 });
 
-module.exports = router;
+module.exports = {
+  publicRoutes: publicRouter,
+  protectedRoutes: protectedRouter
+};
