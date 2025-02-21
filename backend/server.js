@@ -48,18 +48,31 @@ app.use((req, res, next) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error('Error:', {
+  console.error('Error details:', {
     message: err.message,
     stack: err.stack,
     path: req.path,
     method: req.method,
-    body: req.body
+    body: req.body,
+    user: req.user ? req.user._id : 'No user'
   });
 
   res.status(err.status || 500).json({
     success: false,
-    error: err.message || 'Server Error'
+    error: process.env.NODE_ENV === 'development' 
+      ? err.message 
+      : 'Server Error'
   });
+});
+
+// Add request logging middleware
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`, {
+    body: req.body,
+    query: req.query,
+    user: req.user ? req.user._id : 'No user'
+  });
+  next();
 });
 
 // Database connection

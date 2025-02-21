@@ -10,8 +10,9 @@ router.get('/agents', protect, authorize('admin'), async (req, res) => {
       role: { $in: ['agent', 'sub-agent'] }
     });
     res.json({ success: true, data: agents });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
+  } catch (error) {
+    console.error('Error fetching agents:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch agents' });
   }
 });
 
