@@ -38,7 +38,8 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'https://www.budgetbrilliance.in',
-    'https://budgetbrilliance.in'
+    'https://budgetbrilliance.in',
+    'https://muthualfuunds.onrender.com'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -53,8 +54,21 @@ app.use(cors({
   exposedHeaders: ['Content-Length', 'X-Total-Count']
 }));
 
-// Add CORS preflight handler
-app.options('*', cors());
+// Add this right after your CORS middleware
+app.use((req, res, next) => {
+  // Set CORS headers for all responses
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,UPDATE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept, Authorization');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
 
 app.use(express.json());
 
@@ -66,14 +80,6 @@ app.use((req, res, next) => {
     path: req.path,
     body: req.method === 'POST' ? { ...req.body, password: '[REDACTED]' } : undefined
   });
-  next();
-});
-
-// Add this before your routes
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Credentials', true);
-  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,UPDATE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept');
   next();
 });
 
