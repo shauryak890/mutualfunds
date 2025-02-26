@@ -39,7 +39,7 @@ app.use(cors({
     'http://localhost:3000',
     'https://www.budgetbrilliance.in',
     'https://budgetbrilliance.in',
-    'https://muthualfuunds.onrender.com'
+    'https://mutualfunds-yv4i.onrender.com'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
